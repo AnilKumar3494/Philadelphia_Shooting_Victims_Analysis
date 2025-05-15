@@ -1,0 +1,85 @@
+---
+title: "Geospatial Analysis of Philadelphia Shooting Data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries and Data
+
+We load the necessary R packages and then read your shooting data from the CSV file.
+
+```{r load_libraries_and_data}
+# Install necessary packages (run this only once)
+# install.packages(c("tidyverse", "sf", "leaflet", "ggplot2", "viridis", "readr", "sp", "leaflet.extras"))
+
+# Load the packages
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(ggplot2)
+library(viridis)
+library(readr)
+library(sp)
+library(leaflet.extras)
+```
+
+## Load the data
+```{r load_data}
+# Load the shooting data from a CSV file
+shooting_data <- read_csv("./philly_shootings.csv")
+
+# View structure
+glimpse(shooting_data)
+summary(shooting_data)
+```
+
+## Clean and prepare the data
+```{r clean_data}
+shooting_data <- shooting_data %>%
+  filter(!is.na(lat) & !is.na(lng)) %>%
+  rename(latitude = lat, longitude = lng)
+```
+
+## Convert to spatial data
+```{r spatial_data}
+shootings_sf <- st_as_sf(shooting_data, coords = c("longitude", "latitude"), crs = 4326)
+```
+
+## Plotting Static Map
+```{r static_map}
+ggplot(data = shootings_sf) +
+  geom_sf(alpha = 0.3, color = "red") +
+  theme_minimal() +
+  labs(title = "Philadelphia Shooting Incidents",
+       subtitle = "Based on geospatial coordinates",
+       caption = "Source: philly_shootings.csv")
+```
+
+## Interactive Map Using Leaflet
+```{r leaflet_interactive_map}
+leaflet(data = shootings_sf) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addCircleMarkers(radius = 3, color = "red", fillOpacity = 0.5,
+                   popup = ~paste("Date:", date_, "<br>",
+                                  "Location:", location))
+```
+
+## Heatmap
+```{r leaflet_heatmap}
+# Precompute coordinates from sf object
+coords <- st_coordinates(shootings_sf)
+
+# Bind coordinates as columns to original data
+shootings_coords <- shootings_sf %>%
+  mutate(long = coords[,1], lat = coords[,2])
+
+# Now use lat/lng in leaflet
+leaflet(data = shootings_coords) %>%
+  addProviderTiles("CartoDB.DarkMatter") %>%
+  addHeatmap(lng = ~long,
+             lat = ~lat,
+             blur = 20, max = 0.1, radius = 15)
+```
