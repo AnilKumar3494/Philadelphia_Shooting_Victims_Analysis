@@ -1,0 +1,156 @@
+---
+title: "Philadelphia Shooting Victims Analysis"
+author: Anil Kumar, Shawn Thomas, Nicole Padilla
+output: html_notebook
+---
+
+# Introduction
+Gun violence is a significant issue in the city of Philadelphia. [There were 771 shooting incidents in the city in 2024 per the Philadelphia Police Department](https://www.phillypolice.com/crime-data/crime-statistics/). The goal of this project is to utilize the data provided by the Philadelphia Police Department via OpenDataPhilly on shooting incidents to build a picture of the fatal shooting incidents occurring in the city. Who is most likely to be the victim of a fatal incident (age, race, sex)? What conditions of an incident make it more likely to be fatal (wound type)? When and where are the most fatal incidents occurring (time of day/year, location)? 
+
+Understanding the trends of fatal gun violence incidents can assist in painting a clearer picture of the problem and point towards potential solutions. Understanding the time and location of the most dangerous shootings provides guidance for police on where to focus their efforts. Understanding who is most at risk of a fatal shooting guides social and health services towards populations that may benefit from interventions to assist shooting victims. 
+
+# Data Overview
+
+The data is collected by the Philadelphia Police Department and provided via OpenDataPhilly. Below, we will load the data and gather the available variables for answering our questions. 
+
+Looking at the available fields we have a rich potential set of data to answer our questions. The age, race, sex and latino fields can provide a profile of the most frequent shooting victims. Wound can inform which types of injuries are most often fatal. Location, time and date can be used to determine when and where fatal incidents occur most often. These fields will be compared to the fatal column in order to determine fatality incidence.
+
+```{r}
+# Install necessary packages (run this only once)
+# install.packages(c("tidyverse", "sf", "leaflet", "ggplot2", "viridis", "readr", "sp", "leaflet.extras", "readxl"))
+
+# Load the packages
+library(tidyverse)
+library(sf)
+library(leaflet)
+library(ggplot2)
+library(viridis)
+library(readr)
+library(sp)
+library(leaflet.extras)
+
+
+library(tidyverse)
+library(readxl)
+```
+
+```{r}
+shootings.raw = read_delim(
+  "./philly_shootings.csv",
+  delim=",",
+  show_col_types = FALSE,
+) %>% glimpse()
+```
+
+# Exploratory Data Analysis
+
+## Handling NAs
+
+First, we look at NAs to see where we may have missing data that needs to be cleaned up. Looking at the summary of NAs a group of 153 NAs shows up across multiple columns including fatal. We will investigate those to clean them up since they will prevent us from accurately summing the fatalities.
+
+```{r}
+shootings.raw %>% summarise_all(~ sum(is.na(.)))
+```
+Based on this, it looks like certain columns, including fatal, are left blank in any incident that involves an officer. In these cases the only fatality data provided is offender deceased.  However, this would leave out any other fatalities that occurred during the incident since not everyone injured in a shooting incident is necessarily an offender.
+
+Critical data for our analysis is missing from all of these officer involved shootings - time, race, age, wound, latino and, most importantly, fatal. There are 40 fatal incidents with an officer involved for which there is incomplete data.
+
+```{r}
+shootings.raw %>% filter(if_any(fatal, is.na))
+```
+
+```{r}
+shootings.raw %>% filter(officer_involved == 'Y')
+```
+```{r}
+shootings.officer = shootings.raw %>% filter(officer_involved == 'Y')
+
+shootings.officer %>% filter(offender_deceased == 'Y')
+```
+
+We can make an adjusted table, adding a total_fatality column that includes offender_deceased. It will not be usable for the questions of the profile of the most frequent shooting victims and their wound types, or the time of day of incidents, since that data is missing, but it can be used for the geolocation and date questions. 
+
+This introduces some potential bias into our data because it is possible that we are excluding non-offender fatalities. It is unknown to us if those are excluded or just did not occur. However, it is more complete than not including these 40 fatalities at all.
+
+This gives us a column, total_fatality, with no NAs that can be summed to a total of 3494 fatalities between 2015 and 2025. 
+
+```{r}
+shootings.adjusted = shootings.raw
+
+shootings.adjusted$offender_fatal <- ifelse(shootings.raw$offender_deceased == "Y", 1, 0)
+
+shootings.adjusted <- shootings.adjusted %>% 
+                      mutate(fatal = replace_na(fatal, 0))
+
+shootings.adjusted$total_fatality <- shootings.adjusted$offender_fatal + shootings.adjusted$fatal
+
+shootings.adjusted
+
+```
+
+```{r}
+sum(shootings.adjusted$total_fatality)
+```
+## Examining Data by Year
+
+Looking at fatality totals by year we can see that partial data is included for 2025. This will obviously be skewed on an annual basis since 2025 is not complete yet. We can see here that fatal shooting incidents rose from 2015 to 2021, peaked in 2021, then fell from 2021-2024.
+
+```{r}
+fatal.byyear = aggregate(shootings.adjusted['total_fatality'], by=shootings.adjusted['year'], sum)
+
+fatal.byyear
+```
+
+
+# AK - Geospatial Analysis
+## Clean and prepare the data
+```{r clean_data}
+# View structure
+glimpse(shootings.raw)
+summary(shootings.raw)
+
+shootings.raw  <- shootings.raw  %>%
+  filter(!is.na(lat) & !is.na(lng)) %>%
+  rename(latitude = lat, longitude = lng)
+```
+
+## Convert to spatial data
+```{r spatial_data}
+shootings_sf <- st_as_sf(shootings.raw , coords = c("longitude", "latitude"), crs = 4326)
+```
+
+## Plotting Static Map
+```{r static_map}
+ggplot(data = shootings_sf) +
+  geom_sf(alpha = 0.3, color = "red") +
+  theme_minimal() +
+  labs(title = "Philadelphia Shooting Incidents",
+       subtitle = "Based on geospatial coordinates",
+       caption = "Source: philly_shootings.csv")
+```
+
+## Interactive Map Using Leaflet
+```{r leaflet_interactive_map}
+leaflet(data = shootings_sf) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>%
+  addCircleMarkers(radius = 3, color = "red", fillOpacity = 0.5,
+                   popup = ~paste("Date:", date_, "<br>",
+                                  "Location:", location))
+```
+
+## Heatmap
+```{r leaflet_heatmap}
+# Precompute coordinates from sf object
+coords <- st_coordinates(shootings_sf)
+
+# Bind coordinates as columns to original data
+shootings_coords <- shootings_sf %>%
+  mutate(long = coords[,1], lat = coords[,2])
+
+# Now use lat/lng in leaflet
+leaflet(data = shootings_coords) %>%
+  addProviderTiles("CartoDB.DarkMatter") %>%
+  addHeatmap(lng = ~long,
+             lat = ~lat,
+             blur = 20, max = 0.1, radius = 15)
+```
