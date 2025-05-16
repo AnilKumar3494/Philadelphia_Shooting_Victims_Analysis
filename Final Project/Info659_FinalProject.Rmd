@@ -17,7 +17,9 @@ Looking at the available fields we have a rich potential set of data to answer o
 
 ```{r}
 # Install necessary packages (run this only once)
-# install.packages(c("tidyverse", "sf", "leaflet", "ggplot2", "viridis", "readr", "sp", "leaflet.extras", "readxl"))
+# install.packages(c("tidyverse", "sf", "leaflet", "ggplot2", "viridis", "readr", "sp", "leaflet.extras", "readxl", "htmltools", "htmlwidgets", "shiny", "dplyr"))
+
+#install.packages("RColorBrewer")
 
 # Load the packages
 library(tidyverse)
@@ -28,6 +30,11 @@ library(viridis)
 library(readr)
 library(sp)
 library(leaflet.extras)
+library(htmltools)
+library(htmlwidgets)
+library(shiny)
+library(dplyr)
+library(RColorBrewer)
 
 
 library(tidyverse)
@@ -129,13 +136,229 @@ ggplot(data = shootings_sf) +
        caption = "Source: philly_shootings.csv")
 ```
 
+
 ## Interactive Map Using Leaflet
-```{r leaflet_interactive_map}
-leaflet(data = shootings_sf) %>%
-  addProviderTiles(providers$CartoDB.Positron) %>%
-  addCircleMarkers(radius = 3, color = "red", fillOpacity = 0.5,
-                   popup = ~paste("Date:", date_, "<br>",
-                                  "Location:", location))
+
+```{r leaflet_interactive_map_enhanced, message=FALSE, warning=FALSE}
+
+# Add a unique ID to each row in the dataset
+shootings_sf <- shootings_sf %>%
+  mutate(unique_id = paste0("marker-", row_number(), "-", year))
+
+# Create a unique list of years
+years <- sort(unique(shootings_sf$year))
+
+# Create a more visually appealing color palette (e.g., from RColorBrewer)
+# Use a palette with enough distinct colors for the number of years
+if (length(years) <= 8) {
+  year_colors <- colorRampPalette(brewer.pal(length(years), "Dark2"))(length(years))
+} else {
+  year_colors <- colorRampPalette(brewer.pal(9, "Dark2"))(length(years)) # Max 9 for Dark2
+}
+year_colors <- colorFactor(palette = year_colors, domain = years)
+
+
+# Create base map centered on Philadelphia
+center_lon <- -75.1652
+center_lat <- 39.9526
+
+m <- leaflet() %>%
+  setView(lng = center_lon, lat = center_lat, zoom = 11) %>%
+  addProviderTiles(providers$CartoDB.Positron) %>% # A cleaner tile style
+  htmlwidgets::onRender("function(el, x) {
+    L.DomUtil.addClass(this._map.container, 'safegraph-map');
+  }")
+
+# Add circles by year
+for (yr in years) {
+  m <- m %>% addCircleMarkers(
+    data = shootings_sf %>% filter(year == yr),
+    radius = 5, # Slightly larger radius
+    color = ~year_colors(year),
+    fillOpacity = 0.7, # Slightly more opaque
+    stroke = FALSE,
+    group = as.character(yr), # Use year directly as group
+    popup = ~paste(
+      "<b>Year:</b>", year, "<br>",
+      "<b>Date:</b>", date_, "<br>",
+      "<b>Location:</b>", location
+    ),
+    layerId = ~unique_id
+  )
+}
+
+# Add layer control
+m <- m %>% addLayersControl(
+  overlayGroups = as.character(years), # Use years directly
+  options = layersControlOptions(collapsed = FALSE)
+)
+
+# Add "Select All" / "Deselect All" button using HTML and JavaScript
+select_all_js <- paste0('
+function(el, x, data) {
+  var map = this;
+  var yearGroups = ', jsonlite::toJSON(years), '; // Use the 'years' array
+  var selectAllButton = L.DomUtil.create("button", "leaflet-control-layers-selector safegraph-button"); // Apply a custom class
+  selectAllButton.innerHTML = "Select All Years";
+  selectAllButton.style.marginBottom = "10px";
+
+  var layersControl = el.querySelector(".leaflet-control-layers-overlays");
+  if (layersControl) {
+    layersControl.parentNode.insertBefore(selectAllButton, layersControl);
+
+    selectAllButton.onclick = function() {
+      var allChecked = true;
+      yearGroups.forEach(function(group) {
+        var checkbox = document.querySelector(\'input[value="\' + group + \'"]\');
+        if (checkbox && !checkbox.checked) {
+          allChecked = false;
+        }
+      });
+
+      yearGroups.forEach(function(group) {
+        var checkbox = document.querySelector(\'input[value="\' + group + \'"]\');
+        if (checkbox) {
+          checkbox.checked = !allChecked;
+          checkbox.dispatchEvent(new Event("change")); // Trigger layer update
+        }
+      });
+      selectAllButton.innerHTML = allChecked ? "Select All Years" : "Deselect All Years";
+    };
+  }
+}
+')
+
+m <- htmlwidgets::onRender(m, select_all_js)
+
+# Add legend
+m <- m %>% addLegend(
+  position = "bottomright",
+  colors = year_colors(years), # Use the color palette
+  labels = years,             # Use the years as labels
+  title = "Shooting Year",
+  opacity = 1
+)
+
+# Add CSS for styling
+m <- m %>% htmlwidgets::onRender("
+function(el, x) {
+  var css = `
+    .safegraph-map {
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+    }
+    .safegraph-button {
+      background-color: #f0f0f0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      font-family: 'Arial', sans-serif;
+      color: #333;
+      display: inline-block;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .safegraph-button:hover {
+      background-color: #e0e0e0;
+    }
+    .leaflet-control-layers-list input[type='checkbox'] {
+      margin-right: 4px;
+    }
+    .leaflet-popup-content {
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .leaflet-popup-content b {
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    .leaflet-control-layers {
+      background-color: rgba(255, 255, 255, 0.9);
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+      padding: 6px 10px;
+      font-size: 12px;
+      color: #34495e;
+    }
+    .leaflet-control-layers-title {
+      font-weight: bold;
+      margin-bottom: 6px;
+      color: #2c3e50;
+    }
+    .leaflet-control-layers-prefix {
+      margin-right: 6px;
+    }
+
+  `;
+  var style = document.createElement('style');
+  style.type = 'text/css';
+  style.appendChild(document.createTextNode(css));
+  document.head.appendChild(style);
+}
+")
+
+
+m
+
+```
+
+
+
+## using shiny
+# ```{r shiny_map, echo=FALSE}
+# years <- sort(unique(shootings_sf$year))
+# sexes <- unique(shootings_sf$sex)
+# year_colors <- colorFactor("viridis", domain = years)
+
+# ui <- fluidPage(
+#   titlePanel("Interactive Shooting Map by Year and Sex"),
+#   sidebarLayout(
+#     sidebarPanel(
+#       checkboxGroupInput("year_filter", "Select Year(s):", choices = years, selected = years),
+#       checkboxGroupInput("sex_filter", "Select Sex(es):", choices = sexes, selected = sexes)
+#     ),
+#     mainPanel(
+#       leafletOutput("shooting_map", height = 600)
+#     )
+#   )
+# )
+
+# server <- function(input, output, session) {
+
+#   output$shooting_map <- renderLeaflet({
+#     leaflet() %>%
+#       addProviderTiles(providers$CartoDB.Positron) %>%
+#       setView(lng = -75.1652, lat = 39.9526, zoom = 11) %>%
+#       addLegend("bottomleft", pal = year_colors, values = shootings_sf$year, title = "Year")
+#   })
+
+#   observe({
+#     req(input$year_filter, input$sex_filter)
+
+#     filtered_data <- shootings_sf %>%
+#       filter(year %in% input$year_filter, sex %in% input$sex_filter)
+
+#     leafletProxy("shooting_map") %>%
+#       clearMarkers() %>%
+#       addCircleMarkers(
+#         data = filtered_data,
+#         color = ~year_colors(year),
+#         radius = 5,
+#         stroke = FALSE,
+#         fillOpacity = 0.6,
+#         popup = ~paste0("<b>Year:</b> ", year,
+#                         "<br><b>Sex:</b> ", sex,
+#                         "<br><b>Date:</b> ", date_,
+#                         "<br><b>Location:</b> ", location)
+#       )
+#   })
+# }
+
+# shinyApp(ui, server)
 ```
 
 ## Heatmap
