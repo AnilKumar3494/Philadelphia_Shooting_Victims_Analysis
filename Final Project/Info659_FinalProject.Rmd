@@ -197,7 +197,7 @@ m <- m %>% addLayersControl(
 select_all_js <- paste0('
 function(el, x, data) {
   var map = this;
-  var yearGroups = ', jsonlite::toJSON(years), '; // Use the 'years' array
+  var yearGroups = ', jsonlite::toJSON(years), '; // Use the years array
   var selectAllButton = L.DomUtil.create("button", "leaflet-control-layers-selector safegraph-button"); // Apply a custom class
   selectAllButton.innerHTML = "Select All Years";
   selectAllButton.style.marginBottom = "10px";
