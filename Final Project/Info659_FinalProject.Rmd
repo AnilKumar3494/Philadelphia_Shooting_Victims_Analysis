@@ -10,7 +10,6 @@ Gun violence is a significant issue in the city of Philadelphia. [There were 771
 Understanding the trends of fatal gun violence incidents can assist in painting a clearer picture of the problem and point towards potential solutions. Understanding the time and location of the most dangerous shootings provides guidance for police on where to focus their efforts. Understanding who is most at risk of a fatal shooting guides social and health services towards populations that may benefit from interventions to assist shooting victims. 
 
 # Data Overview
-
 The data is collected by the Philadelphia Police Department and provided via OpenDataPhilly. Below, we will load the data and gather the available variables for answering our questions. 
 
 Looking at the available fields we have a rich potential set of data to answer our questions. The age, race, sex and latino fields can provide a profile of the most frequent shooting victims. Wound can inform which types of injuries are most often fatal. Location, time and date can be used to determine when and where fatal incidents occur most often. These fields will be compared to the fatal column in order to determine fatality incidence.
@@ -105,7 +104,13 @@ Looking at fatality totals by year we can see that partial data is included for 
 ```{r}
 fatal.byyear = aggregate(shootings.adjusted['total_fatality'], by=shootings.adjusted['year'], sum)
 
-fatal.byyear
+fatal.15to24 <- fatal.byyear %>%
+  filter(year != 2025)
+
+ggplot(data = fatal.15to24, aes(x = year, y = total_fatality)) +
+  ggtitle("Total Fatal Shooting Victims by Year 2015-2024") +
+  geom_col() +
+  scale_x_continuous(breaks = 2015:2024)
 ```
 
 
@@ -113,17 +118,17 @@ fatal.byyear
 ## Clean and prepare the data
 ```{r clean_data}
 # View structure
-glimpse(shootings.raw)
-summary(shootings.raw)
+glimpse(shootings.adjusted)
+summary(shootings.adjusted)
 
-shootings.raw  <- shootings.raw  %>%
+shootings.spatial  <- shootings.adjusted %>%
   filter(!is.na(lat) & !is.na(lng)) %>%
   rename(latitude = lat, longitude = lng)
 ```
 
 ## Convert to spatial data
 ```{r spatial_data}
-shootings_sf <- st_as_sf(shootings.raw , coords = c("longitude", "latitude"), crs = 4326)
+shootings_sf <- st_as_sf(shootings.spatial , coords = c("longitude", "latitude"), crs = 4326)
 ```
 
 ## Plotting Static Map
@@ -359,21 +364,3 @@ m
 # }
 
 # shinyApp(ui, server)
-```
-
-## Heatmap
-```{r leaflet_heatmap}
-# Precompute coordinates from sf object
-coords <- st_coordinates(shootings_sf)
-
-# Bind coordinates as columns to original data
-shootings_coords <- shootings_sf %>%
-  mutate(long = coords[,1], lat = coords[,2])
-
-# Now use lat/lng in leaflet
-leaflet(data = shootings_coords) %>%
-  addProviderTiles("CartoDB.DarkMatter") %>%
-  addHeatmap(lng = ~long,
-             lat = ~lat,
-             blur = 20, max = 0.1, radius = 15)
-```
