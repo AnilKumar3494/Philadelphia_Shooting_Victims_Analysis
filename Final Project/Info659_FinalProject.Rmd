@@ -1,35 +1,23 @@
 ---
 title: "Philadelphia Shooting Victims Analysis"
-author: Anil Kumar, Shawn Thomas, Nicole Padilla
-output: html_notebook
+author: "Anil Kumar, Shawn Thomas, Nicole Padilla"
+output:
+  html_document:
+    df_print: paged
 ---
 
-# Introduction
+## Introduction
 Gun violence is a significant issue in the city of Philadelphia. [There were 771 shooting incidents in the city in 2024 per the Philadelphia Police Department](https://www.phillypolice.com/crime-data/crime-statistics/). The goal of this project is to utilize the data provided by the Philadelphia Police Department via OpenDataPhilly on shooting incidents to build a picture of the fatal shooting incidents occurring in the city. Who is most likely to be the victim of a fatal incident (age, race, sex)? What conditions of an incident make it more likely to be fatal (wound type)? When and where are the most fatal incidents occurring (time of day/year, location)? 
 
 Understanding the trends of fatal gun violence incidents can assist in painting a clearer picture of the problem and point towards potential solutions. Understanding the time and location of the most dangerous shootings provides guidance for police on where to focus their efforts. Understanding who is most at risk of a fatal shooting guides social and health services towards populations that may benefit from interventions to assist shooting victims. 
 
-# Data Overview
+## Data Overview
 
 The data is collected by the Philadelphia Police Department and provided via OpenDataPhilly. Below, we will load the data and gather the available variables for answering our questions. 
 
 Looking at the available fields we have a rich potential set of data to answer our questions. The age, race, sex and latino fields can provide a profile of the most frequent shooting victims. Wound can inform which types of injuries are most often fatal. Location, time and date can be used to determine when and where fatal incidents occur most often. These fields will be compared to the fatal column in order to determine fatality incidence.
 
 ```{r}
-# Install necessary packages (run this only once)
-# install.packages(c("tidyverse", "sf", "leaflet", "ggplot2", "viridis", "readr", "sp", "leaflet.extras", "readxl"))
-
-# Load the packages
-library(tidyverse)
-library(sf)
-library(leaflet)
-library(ggplot2)
-library(viridis)
-library(readr)
-library(sp)
-library(leaflet.extras)
-
-
 library(tidyverse)
 library(readxl)
 ```
@@ -41,10 +29,9 @@ shootings.raw = read_delim(
   show_col_types = FALSE,
 ) %>% glimpse()
 ```
+## Data Preparation and Cleaning
 
-# Exploratory Data Analysis
-
-## Handling NAs
+### Handling NAs
 
 First, we look at NAs to see where we may have missing data that needs to be cleaned up. Looking at the summary of NAs a group of 153 NAs shows up across multiple columns including fatal. We will investigate those to clean them up since they will prevent us from accurately summing the fatalities.
 
@@ -91,14 +78,72 @@ shootings.adjusted
 ```{r}
 sum(shootings.adjusted$total_fatality)
 ```
-## Examining Data by Year
+## Exploratory Data Analysis
+
+### Examining Data by Year
 
 Looking at fatality totals by year we can see that partial data is included for 2025. This will obviously be skewed on an annual basis since 2025 is not complete yet. We can see here that fatal shooting incidents rose from 2015 to 2021, peaked in 2021, then fell from 2021-2024.
 
 ```{r}
 fatal.byyear = aggregate(shootings.adjusted['total_fatality'], by=shootings.adjusted['year'], sum)
 
-fatal.byyear
+fatal.15to24 <- fatal.byyear %>%
+  filter(year != 2025)
+
+```
+
+```{r}
+ggplot(data = fatal.15to24, aes(x = year, y = total_fatality)) +
+  ggtitle("Total Fatal Shooting Victims by Year 2015-2024") +
+  geom_col() +
+  scale_x_continuous(breaks = 2015:2024)
+```
+## Fatal Shooting Victim Profile
+
+For this analysis we will be only looking at victims of criminal shootings, not officer involved shootings so we will only use the fatal column, not total_fatality.
+
+### Age of Victims
+First let's get the mean age of fatal shooting victim.
+```{r}
+fatal.only <- shootings.adjusted %>%
+  filter(fatal == 1)
+
+fatal.only <- fatal.only[!is.na(fatal.only$age), ]
+
+mean(fatal.only$age)
+```
+
+Now, we will look at the overall distribution of shooting victim age.
+```{r}
+ggplot(data = shootings.adjusted, aes(x = age, y = fatal)) +
+  ggtitle("Age Distribution of Fatal Shooting Victims") +
+  geom_col()
+```
+### Fatal Shooting Victim Sex
+
+### Fatal Shooting Victim Race
+
+## Geospatial Analysis
+
+## Trends Overtime
+
+### Average Age over Time
+
+First, we will calculate the mean age of fatal shooting victim by year. 
+```{r}
+age_avg <- fatal.only %>%
+  group_by(year) %>%
+  summarize(average_value = mean(age))
+
+age_avg
+```
+Then, let's visualize the average age by year for 2015 - 2014. We are excluding 2025 because it is a partial year of data.
+
+```{r}
+ggplot(data = age_avg, aes(x = year, y = average_value)) +
+  ggtitle("Average Age of Fatal Shooting Victims by Year 2015-2024") +
+  geom_col() +
+  scale_x_continuous(breaks = 2015:2024)
 ```
 
 
