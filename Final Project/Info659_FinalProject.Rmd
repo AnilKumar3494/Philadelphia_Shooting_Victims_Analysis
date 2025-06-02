@@ -112,7 +112,53 @@ ggplot(data = fatal.15to24, aes(x = year, y = total_fatality)) +
   geom_col() +
   scale_x_continuous(breaks = 2015:2024)
 ```
+## Fatal Shooting Victim Profile
 
+For this analysis we will be only looking at victims of criminal shootings, not officer involved shootings so we will only use the fatal column, not total_fatality.
+
+### Age of Victims
+First let's get the mean age of fatal shooting victim.
+```{r}
+fatal.only <- shootings.adjusted %>%
+  filter(fatal == 1)
+
+fatal.only <- fatal.only[!is.na(fatal.only$age), ]
+
+mean(fatal.only$age)
+```
+
+Now, we will look at the overall distribution of shooting victim age.
+```{r}
+ggplot(data = shootings.adjusted, aes(x = age, y = fatal)) +
+  ggtitle("Age Distribution of Fatal Shooting Victims") +
+  geom_col()
+```
+### Fatal Shooting Victim Sex
+
+### Fatal Shooting Victim Race
+
+## Geospatial Analysis
+
+## Trends Overtime
+
+### Average Age over Time
+
+First, we will calculate the mean age of fatal shooting victim by year. 
+```{r}
+age_avg <- fatal.only %>%
+  group_by(year) %>%
+  summarize(average_value = mean(age))
+
+age_avg
+```
+Then, let's visualize the average age by year for 2015 - 2014. We are excluding 2025 because it is a partial year of data.
+
+```{r}
+ggplot(data = age_avg, aes(x = year, y = average_value)) +
+  ggtitle("Average Age of Fatal Shooting Victims by Year 2015-2024") +
+  geom_col() +
+  scale_x_continuous(breaks = 2015:2024)
+```
 
 # AK - Geospatial Analysis
 ## Clean and prepare the data
@@ -311,56 +357,3 @@ m
 
 ```
 
-
-
-## using shiny
-# ```{r shiny_map, echo=FALSE}
-# years <- sort(unique(shootings_sf$year))
-# sexes <- unique(shootings_sf$sex)
-# year_colors <- colorFactor("viridis", domain = years)
-
-# ui <- fluidPage(
-#   titlePanel("Interactive Shooting Map by Year and Sex"),
-#   sidebarLayout(
-#     sidebarPanel(
-#       checkboxGroupInput("year_filter", "Select Year(s):", choices = years, selected = years),
-#       checkboxGroupInput("sex_filter", "Select Sex(es):", choices = sexes, selected = sexes)
-#     ),
-#     mainPanel(
-#       leafletOutput("shooting_map", height = 600)
-#     )
-#   )
-# )
-
-# server <- function(input, output, session) {
-
-#   output$shooting_map <- renderLeaflet({
-#     leaflet() %>%
-#       addProviderTiles(providers$CartoDB.Positron) %>%
-#       setView(lng = -75.1652, lat = 39.9526, zoom = 11) %>%
-#       addLegend("bottomleft", pal = year_colors, values = shootings_sf$year, title = "Year")
-#   })
-
-#   observe({
-#     req(input$year_filter, input$sex_filter)
-
-#     filtered_data <- shootings_sf %>%
-#       filter(year %in% input$year_filter, sex %in% input$sex_filter)
-
-#     leafletProxy("shooting_map") %>%
-#       clearMarkers() %>%
-#       addCircleMarkers(
-#         data = filtered_data,
-#         color = ~year_colors(year),
-#         radius = 5,
-#         stroke = FALSE,
-#         fillOpacity = 0.6,
-#         popup = ~paste0("<b>Year:</b> ", year,
-#                         "<br><b>Sex:</b> ", sex,
-#                         "<br><b>Date:</b> ", date_,
-#                         "<br><b>Location:</b> ", location)
-#       )
-#   })
-# }
-
-# shinyApp(ui, server)
