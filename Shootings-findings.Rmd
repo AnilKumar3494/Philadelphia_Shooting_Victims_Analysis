@@ -1,0 +1,170 @@
+---
+title: "Philly shootings findings"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+```
+```{r}
+data <- read.csv("shootings.csv")
+```
+
+
+
+```{r}
+head(data,10)
+```
+
+
+
+```{r}
+colnames(data)
+```
+
+```{r}
+shootings_q1 <- data %>%
+  select(officer_involved, fatal)
+```
+
+
+
+
+
+
+```{r}
+head(shootings_q1,10)
+```
+
+```{r}
+
+shootings_q1 <- na.omit(shootings_q1)
+
+```
+
+
+
+
+```{r}
+
+table(shootings_q1$officer_involved)
+
+```
+
+```{r}
+
+unique(shootings_q1$officer_involved)
+```
+```{r}
+shootings_q1$officer_involved <- factor(shootings_q1$officer_involved, levels = c("N", "Y"))
+
+```
+
+
+```{r}
+
+result <- table(shootings_q1$officer_involved, shootings_q1$fatal)
+print(result)
+```
+
+
+
+
+
+
+
+#### Wht body part injuries are most associated with fatal outcomes
+
+
+```{r}
+fatal_df <- data[data$fatal == 1, ]
+```
+
+
+```{r}
+head(fatal_df)
+
+```
+
+
+```{r}
+injury_counts <- table(fatal_df$wound)
+injury_counts
+```
+
+
+```{r}
+sorted_injury_counts <- sort(injury_counts,decreasing = TRUE)
+print(sorted_injury_counts)
+```
+
+
+
+```{r}
+barplot(sorted_injury_counts,las = 2,
+        col = "steelblue",     # Bar color
+        main = "Injury Types in Fatal Shootings",
+        ylab = "Number of Fatal Cases",
+        cex.names = 0.7)  
+
+```
+
+
+
+
+
+
+
+
+
+
+#### which age groups are mostly affected by fatal shootings
+
+
+```{r}
+
+fatal_df <- data[data$fatal==1,]
+head(fatal_df)
+```
+
+
+```{r}
+
+fatal_df$age_group <- cut(fatal_df$age,
+                          breaks = seq(0, 100, by = 10),
+                          right = FALSE,
+                          labels = c("0-9", "10-19", "20-29", "30-39", 
+                                     "40-49", "50-59", "60-69", "70-79", 
+                                     "80-89", "90-99"))
+
+```
+
+
+
+
+```{r}
+head(fatal_df)
+```
+
+
+```{r}
+age_counts <- table(fatal_df$age_group)
+age_counts <- sort(age_counts, decreasing = TRUE)
+print(age_counts)
+```
+
+
+
+```{r}
+
+
+barplot(age_counts,
+        main = "Fatal Shootings by Age Group",
+        xlab = "Age Group",
+        ylab = "Number of Fatal Shootings",
+        col = "darkred",
+        cex.names = 0.7)
+
+
+```

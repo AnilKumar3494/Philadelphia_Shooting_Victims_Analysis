@@ -16,7 +16,7 @@ Looking at the available fields we have a rich potential set of data to answer o
 
 ```{r}
 # Install necessary packages (run this only once)
-# install.packages(c("tidyverse", "sf", "leaflet", "ggplot2", "viridis", "readr", "sp", "leaflet.extras", "readxl", "htmltools", "htmlwidgets", "shiny", "dplyr"))
+#install.packages(c("tidyverse", "sf", "leaflet", "ggplot2", "viridis", "readr", "sp", "leaflet.extras", "readxl", "htmltools", "htmlwidgets", "shiny", "dplyr"))
 
 #install.packages("RColorBrewer")
 
@@ -133,13 +133,89 @@ ggplot(data = shootings.adjusted, aes(x = age, y = fatal)) +
   ggtitle("Age Distribution of Fatal Shooting Victims") +
   geom_col()
 ```
-### Fatal Shooting Victim Sex
 
-### Fatal Shooting Victim Race
 
-## Geospatial Analysis
 
-## Trends Overtime
+
+
+## Counting shootings to which body parts were most fatal
+
+```{r}
+fatal_df <- shootings.raw[shootings.raw$fatal == 1, ]
+```
+
+
+```{r}
+injury_counts <- table(fatal_df$wound)
+injury_counts
+```
+
+```{r}
+sorted_injury_counts <- sort(injury_counts,decreasing = TRUE)
+print(sorted_injury_counts)
+```
+
+## Plotting it
+
+```{r}
+barplot(sorted_injury_counts,las = 2,
+        col = "steelblue",     # Bar color
+        main = "Injury Types in Fatal Shootings",
+        ylab = "Number of Fatal Cases",
+        cex.names = 0.7)  
+
+```
+
+
+
+
+#### which age groups are mostly affected by fatal shootings
+
+```{r}
+
+fatal_df <- shootings.raw[shootings.raw$fatal==1,]
+head(fatal_df)
+```
+
+
+
+
+## Sort by age
+```{r}
+
+fatal_df$age_group <- cut(fatal_df$age,
+                          breaks = seq(0, 100, by = 10),
+                          right = FALSE,
+                          labels = c("0-9", "10-19", "20-29", "30-39", 
+                                     "40-49", "50-59", "60-69", "70-79", 
+                                     "80-89", "90-99"))
+
+```
+
+
+```{r}
+age_counts <- table(fatal_df$age_group)
+age_counts <- sort(age_counts, decreasing = TRUE)
+print(age_counts)
+```
+
+
+
+
+## Plotting fatal shooting counts with respect to age
+```{r}
+
+
+barplot(age_counts,
+        main = "Fatal Shootings by Age Group",
+        xlab = "Age Group",
+        ylab = "Number of Fatal Shootings",
+        col = "darkred",
+        cex.names = 0.7)
+
+
+```
+
 
 ### Average Age over Time
 
