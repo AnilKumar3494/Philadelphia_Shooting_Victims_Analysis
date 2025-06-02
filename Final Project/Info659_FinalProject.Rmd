@@ -115,7 +115,7 @@ ggplot(data = fatal.15to24, aes(x = year, y = total_fatality)) +
 ## Fatal Shooting Victim Profile
 
 For this analysis we will be only looking at victims of criminal shootings, not officer involved shootings so we will only use the fatal column, not total_fatality.
-
+ṁ
 ### Age of Victims
 First let's get the mean age of fatal shooting victim.
 ```{r}
