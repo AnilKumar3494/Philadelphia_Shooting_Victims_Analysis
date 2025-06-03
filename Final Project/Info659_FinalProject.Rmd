@@ -145,170 +145,353 @@ ggplot(data = shootings_sf) +
 ## Interactive Map Using Leaflet
 
 ```{r leaflet_interactive_map_enhanced, message=FALSE, warning=FALSE}
+# Load necessary libraries
+# Ensure you have these: dplyr, sf, leaflet, RColorBrewer, grDevices, htmltools, htmlwidgets, jsonlite
+library(dplyr)
+library(sf)
+library(leaflet)
+library(RColorBrewer)
+library(grDevices)
+library(htmltools)
+library(htmlwidgets)
+library(jsonlite)
 
-# Add a unique ID to each row in the dataset
-shootings_sf <- shootings_sf %>%
-  mutate(unique_id = paste0("marker-", row_number(), "-", year))
-
-# Create a unique list of years
-years <- sort(unique(shootings_sf$year))
-
-# Create a more visually appealing color palette (e.g., from RColorBrewer)
-# Use a palette with enough distinct colors for the number of years
-if (length(years) <= 8) {
-  year_colors <- colorRampPalette(brewer.pal(length(years), "Dark2"))(length(years))
-} else {
-  year_colors <- colorRampPalette(brewer.pal(9, "Dark2"))(length(years)) # Max 9 for Dark2
+# Ensure shootings_sf is an sf object and has relevant columns
+# This assumes 'shootings_sf' is already loaded and processed.
+# Replace the placeholder below with your actual data loading and preparation.
+if (!exists("shootings_sf") || !"sf" %in% class(shootings_sf)) {
+ message("Warning: 'shootings_sf' not found or not an sf object. Using dummy data for example structure.")
+ # Dummy data for example structure:
+ shootings_sf <- data.frame(
+    year = rep(2020:2021, each = 2),
+    date_ = as.Date(c("2020-01-01", "2020-02-01", "2021-01-15", "2021-03-10")),
+    location = paste("Location", 1:4),
+    total_fatality = c(0, 1, 0, 1),
+    lat = runif(4, 39.9, 40.1),
+    lng = runif(4, -75.2, -75.1)
+ ) %>%
+ st_as_sf(coords = c("lng", "lat"), crs = 4326)
 }
-year_colors <- colorFactor(palette = year_colors, domain = years)
 
+if (!"total_fatality" %in% names(shootings_sf) || !"year" %in% names(shootings_sf) || !"date_" %in% names(shootings_sf) || !"location" %in% names(shootings_sf) ) {
+  stop("shootings_sf is missing one or more required columns: year, date_, location, total_fatality.")
+}
+
+if (!"unique_id" %in% names(shootings_sf)) {
+  shootings_sf <- shootings_sf %>%
+    dplyr::mutate(unique_id = paste0("marker-", dplyr::row_number(), "-", year))
+}
+
+# Create unique list of years
+years <- if ("year" %in% names(shootings_sf)) sort(unique(shootings_sf$year)) else character(0)
+
+# Create color palette
+if (length(years) > 0) {
+  if (length(years) <= 8) {
+    year_palette_colors <- RColorBrewer::brewer.pal(max(3, length(years)), "Dark2")
+    if (length(years) < 3) {
+      year_palette_colors <- year_palette_colors[1:length(years)]
+    }
+  } else {
+    year_palette_colors <- grDevices::colorRampPalette(RColorBrewer::brewer.pal(min(length(years), 9), "Dark2"))(length(years))
+  }
+  year_colors <- leaflet::colorFactor(palette = year_palette_colors, domain = years)
+} else {
+  year_colors <- NULL
+  warning("Year column not found or no unique years in shootings_sf. Map may not display year layers correctly.")
+}
 
 # Create base map centered on Philadelphia
 center_lon <- -75.1652
 center_lat <- 39.9526
 
-m <- leaflet() %>%
-  setView(lng = center_lon, lat = center_lat, zoom = 11) %>%
-  addProviderTiles(providers$CartoDB.Positron) %>% # A cleaner tile style
-  htmlwidgets::onRender("function(el, x) {
-    L.DomUtil.addClass(this._map.container, 'safegraph-map');
-  }")
+m <- leaflet::leaflet(shootings_sf) %>%
+  leaflet::setView(lng = center_lon, lat = center_lat, zoom = 11) %>%
+  leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) %>%
+  htmlwidgets::onRender("function(el, x) { el.classList.add('safegraph-map'); }")
 
-# Add circles by year
-for (yr in years) {
-  m <- m %>% addCircleMarkers(
-    data = shootings_sf %>% filter(year == yr),
-    radius = 5, # Slightly larger radius
-    color = ~year_colors(year),
-    fillOpacity = 0.7, # Slightly more opaque
-    stroke = FALSE,
-    group = as.character(yr), # Use year directly as group
-    popup = ~paste(
-      "<b>Year:</b>", year, "<br>",
-      "<b>Date:</b>", date_, "<br>",
-      "<b>Location:</b>", location
-    ),
-    layerId = ~unique_id
-  )
+# Add circle markers by year
+if (length(years) > 0 && !is.null(year_colors)) {
+  for (yr in years) {
+    year_data <- shootings_sf %>% dplyr::filter(year == yr)
+    if (nrow(year_data) > 0) {
+      m <- m %>% leaflet::addCircleMarkers(
+        data = year_data,
+        radius = 5,
+        color = ~year_colors(year),
+        fillOpacity = 0.7,
+        stroke = FALSE,
+        group = as.character(yr),
+        popup = ~paste(
+          "<b>Year:</b>", htmltools::htmlEscape(year), "<br>",
+          "<b>Date:</b>", htmltools::htmlEscape(date_), "<br>",
+          "<b>Location:</b>", htmltools::htmlEscape(location), "<br>",
+          "<b>Fatality:</b>", ifelse(total_fatality > 0, "Yes", "No"),
+          "<b>Wound:</b>", htmltools::htmlEscape(wound)
+        ),
+        layerId = ~unique_id
+      )
+    }
+  }
 }
 
 # Add layer control
-m <- m %>% addLayersControl(
-  overlayGroups = as.character(years), # Use years directly
-  options = layersControlOptions(collapsed = FALSE)
+if (length(years) > 0) {
+  m <- m %>% leaflet::addLayersControl(
+    overlayGroups = as.character(years),
+    options = leaflet::layersControlOptions(collapsed = FALSE)
+  )
+}
+
+# JavaScript for a single "Select/Deselect All" toggle button using paste0
+year_groups_json_str <- jsonlite::toJSON(as.character(years)) # Prepare JSON string once
+
+select_toggle_js <- paste0(
+  "function(el, x, data) {\n",
+  "  setTimeout(function() {\n",
+  "    var yearGroups = ", year_groups_json_str, ";\n",
+  "    if (!yearGroups || yearGroups.length === 0) { console.warn('No year groups for toggle button.'); return; }\n",
+  "    var layersControlContainer = el.querySelector('.leaflet-control-layers-overlays');\n",
+  "    if (!layersControlContainer) { console.warn('Layers control container not found for toggle button.'); return; }\n",
+  "\n",
+  "    var toggleButton = L.DomUtil.create('button', 'leaflet-control-layers-selector safegraph-button');\n",
+  "    toggleButton.style.marginBottom = '10px';\n",
+  "\n",
+  "    function getCurrentAllCheckedState() {\n",
+  "      if (yearGroups.length === 0) return false;\n",
+  "      for (var i = 0; i < yearGroups.length; i++) {\n",
+  "        var groupStr = String(yearGroups[i]);\n",
+  "        var checkbox = layersControlContainer.querySelector('input[type=\"checkbox\"][value=\"' + groupStr + '\"]');\n",
+  "        if (!checkbox || !checkbox.checked) return false;\n",
+  "      }\n",
+  "      return true;\n",
+  "    }\n",
+  "\n",
+  "    function updateButtonText() {\n",
+  "      if (getCurrentAllCheckedState()) {\n",
+  "        toggleButton.innerHTML = 'Deselect All Years';\n",
+  "      } else {\n",
+  "        toggleButton.innerHTML = 'Select All Years';\n",
+  "      }\n",
+  "    }\n",
+  "\n",
+  "    toggleButton.onclick = function() {\n",
+  "      var currentlyAllChecked = getCurrentAllCheckedState();\n",
+  "      var targetState = !currentlyAllChecked;\n",
+  "      yearGroups.forEach(function(group) {\n",
+  "        var groupStr = String(group);\n",
+  "        var checkbox = layersControlContainer.querySelector('input[type=\"checkbox\"][value=\"' + groupStr + '\"]');\n",
+  "        if (checkbox) {\n",
+  "          if (checkbox.checked !== targetState) {\n",
+  "            checkbox.click();\n",
+  "          }\n",
+  "        }\n",
+  "      });\n",
+  "      updateButtonText();\n",
+  "    };\n",
+  "\n",
+  "    layersControlContainer.parentNode.insertBefore(toggleButton, layersControlContainer);\n",
+  "    updateButtonText(); /* Set initial button text */\n",
+  "  }, 250);\n",
+  "}\n"
 )
 
-# Add "Select All" / "Deselect All" button using HTML and JavaScript
-select_all_js <- paste0('
-function(el, x, data) {
-  var map = this;
-  var yearGroups = ', jsonlite::toJSON(years), '; // Use the years array
-  var selectAllButton = L.DomUtil.create("button", "leaflet-control-layers-selector safegraph-button"); // Apply a custom class
-  selectAllButton.innerHTML = "Select All Years";
-  selectAllButton.style.marginBottom = "10px";
-
-  var layersControl = el.querySelector(".leaflet-control-layers-overlays");
-  if (layersControl) {
-    layersControl.parentNode.insertBefore(selectAllButton, layersControl);
-
-    selectAllButton.onclick = function() {
-      var allChecked = true;
-      yearGroups.forEach(function(group) {
-        var checkbox = document.querySelector(\'input[value="\' + group + \'"]\');
-        if (checkbox && !checkbox.checked) {
-          allChecked = false;
-        }
-      });
-
-      yearGroups.forEach(function(group) {
-        var checkbox = document.querySelector(\'input[value="\' + group + \'"]\');
-        if (checkbox) {
-          checkbox.checked = !allChecked;
-          checkbox.dispatchEvent(new Event("change")); // Trigger layer update
-        }
-      });
-      selectAllButton.innerHTML = allChecked ? "Select All Years" : "Deselect All Years";
-    };
-  }
-}
-')
-
-m <- htmlwidgets::onRender(m, select_all_js)
+m <- m %>% htmlwidgets::onRender(select_toggle_js)
 
 # Add legend
-m <- m %>% addLegend(
-  position = "bottomright",
-  colors = year_colors(years), # Use the color palette
-  labels = years,             # Use the years as labels
-  title = "Shooting Year",
-  opacity = 1
+if (length(years) > 0 && !is.null(year_colors)) {
+  m <- m %>% leaflet::addLegend(
+    position = "bottomleft",
+    pal = year_colors,
+    values = shootings_sf$year,
+    title = "Shooting Year",
+    opacity = 1
+  )
+}
+
+# CSS Styling using paste0
+css_styling_js <- paste0(
+  "function(el, x) {\n",
+  "  var css = `\n", # Start of JS template literal
+  "    .safegraph-map { border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); overflow: hidden; }\n",
+  "    .safegraph-button { background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; transition: background-color 0.3s ease; font-family: 'Arial', sans-serif; color: #333; display: block; width: 100%; text-align: center; white-space: nowrap; box-sizing: border-box; }\n",
+  "    .safegraph-button:hover { background-color: #e0e0e0; }\n",
+  "    .leaflet-control-layers-list input[type='checkbox'] { margin-right: 4px; }\n",
+  "    .leaflet-popup-content { font-size: 12px; line-height: 1.4; }\n",
+  "    .leaflet-popup-content b { font-weight: 600; color: #2c3e50; }\n",
+  "    .leaflet-control-layers { background-color: rgba(255,255,255,0.9); border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); padding: 6px 10px; font-size: 12px; color: #34495e; }\n",
+  "    .leaflet-control-layers-title { font-weight: bold; margin-bottom: 6px; color: #2c3e50; }\n",
+  "  `;\n", # End of JS template literal
+  "  var style = document.createElement('style');\n",
+  "  style.type = 'text/css';\n",
+  "  style.appendChild(document.createTextNode(css));\n",
+  "  document.head.appendChild(style);\n",
+  "  if (!el.classList.contains('safegraph-map')) { el.classList.add('safegraph-map'); }\n",
+  "}\n"
 )
 
-# Add CSS for styling
-m <- m %>% htmlwidgets::onRender("
-function(el, x) {
-  var css = `
-    .safegraph-map {
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-      overflow: hidden;
-    }
-    .safegraph-button {
-      background-color: #f0f0f0;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 12px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-      font-family: 'Arial', sans-serif;
-      color: #333;
-      display: inline-block;
-      text-align: center;
-      white-space: nowrap;
-    }
-    .safegraph-button:hover {
-      background-color: #e0e0e0;
-    }
-    .leaflet-control-layers-list input[type='checkbox'] {
-      margin-right: 4px;
-    }
-    .leaflet-popup-content {
-      font-size: 12px;
-      line-height: 1.4;
-    }
-    .leaflet-popup-content b {
-      font-weight: 600;
-      color: #2c3e50;
-    }
-    .leaflet-control-layers {
-      background-color: rgba(255, 255, 255, 0.9);
-      border-radius: 8px;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-      padding: 6px 10px;
-      font-size: 12px;
-      color: #34495e;
-    }
-    .leaflet-control-layers-title {
-      font-weight: bold;
-      margin-bottom: 6px;
-      color: #2c3e50;
-    }
-    .leaflet-control-layers-prefix {
-      margin-right: 6px;
-    }
+m <- m %>% htmlwidgets::onRender(css_styling_js)
 
-  `;
-  var style = document.createElement('style');
-  style.type = 'text/css';
-  style.appendChild(document.createTextNode(css));
-  document.head.appendChild(style);
-}
-")
-
-
+# Display map
 m
+```
 
+```{r}
+# --- R Chunk: Leaflet Map with Clustering and Enhanced Heatmaps ---
+
+# Define map center
+center_lon <- -75.1652
+center_lat <- 39.9526
+
+# Prepare base data for the map
+# This assumes 'shootings_sf' contains 'officer_involved' and 'offender_deceased' from your raw data processing
+shootings_sf_for_map <- shootings_sf %>%
+  dplyr::mutate(
+    incident_color = ifelse(total_fatality > 0, "red", "orange"),
+    fatality_label = ifelse(total_fatality > 0, "Fatal", "Non-Fatal")
+  )
+
+# Check for necessary columns for filtering new heatmaps
+if (!all(c("officer_involved", "offender_deceased", "total_fatality") %in% names(shootings_sf_for_map))) {
+  stop("One or more required columns ('officer_involved', 'offender_deceased', 'total_fatality') are missing from shootings_sf_for_map.")
+}
+if (!"wound" %in% names(shootings_sf_for_map)) {
+  warning("The column 'wound' was not found in the data. Wound information will be missing from popups.")
+}
+
+
+# Create filtered datasets for new heatmap layers
+officer_involved_fatal_sf <- shootings_sf_for_map %>%
+  dplyr::filter(officer_involved == 'Y' & total_fatality > 0)
+
+officer_involved_non_fatal_sf <- shootings_sf_for_map %>%
+  dplyr::filter(officer_involved == 'Y' & total_fatality == 0)
+
+offender_deceased_sf <- shootings_sf_for_map %>%
+  dplyr::filter(offender_deceased == 'Y') # 'Y' is typical for character flags
+
+all_officer_involved_sf <- shootings_sf_for_map %>%
+  dplyr::filter(officer_involved == 'Y')
+  
+# Create the Leaflet map
+map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Base data
+  leaflet::setView(lng = center_lon, lat = center_lat, zoom = 11) %>%
+  leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron, group = "Base Map") %>%
+  
+  # Layer 1: Clustered Markers (as before)
+  leaflet::addAwesomeMarkers(
+    lng = ~sf::st_coordinates(geometry)[,1], 
+    lat = ~sf::st_coordinates(geometry)[,2], 
+    icon = ~leaflet::awesomeIcons(
+      icon = 'info-circle', 
+      library = 'glyphicon', 
+      markerColor = incident_color, 
+      iconColor = 'white'
+    ),
+    popup = ~paste(
+      "<b>Year:</b>", htmltools::htmlEscape(year), "<br>",
+      "<b>Date:</b>", htmltools::htmlEscape(date_), "<br>",
+      "<b>Location:</b>", htmltools::htmlEscape(location), "<br>",
+      "<b>Fatality:</b>", ifelse(total_fatality > 0, "Yes", "No"), "<br>",
+      "<b>Wound:</b>", if ("wound" %in% names(.)) htmltools::htmlEscape(wound) else "N/A"
+    ),
+    clusterOptions = leaflet::markerClusterOptions(),
+    group = "Shooting Incidents (Clusters)"
+  ) %>%
+  
+  # Layer 2: Heatmap for All Incidents (existing)
+  leaflet.extras::addHeatmap(
+    # Data from leaflet() call: shootings_sf_for_map
+    lng = ~sf::st_coordinates(geometry)[,1], 
+    lat = ~sf::st_coordinates(geometry)[,2],
+    blur = 20, max = 0.05, radius = 15,
+    group = "Heatmap (All Incidents)"
+  ) %>%
+
+  # Layer 3: Heatmap for All Fatal Incidents (existing - uses total_fatality)
+  leaflet.extras::addHeatmap(
+    data = dplyr::filter(shootings_sf_for_map, total_fatality > 0), 
+    lng = ~sf::st_coordinates(geometry)[,1], 
+    lat = ~sf::st_coordinates(geometry)[,2],
+    blur = 20, max = 0.05, radius = 15,
+    group = "Heatmap (All Fatal Incidents)" # Clarified name
+  ) %>%
+
+  
+  # Layer 4: Heatmap for Officer Involved & Fatal Incidents
+  leaflet.extras::addHeatmap(
+    data = officer_involved_fatal_sf,
+    lng = ~sf::st_coordinates(geometry)[,1], 
+    lat = ~sf::st_coordinates(geometry)[,2],
+    blur = 20, max = 0.05, radius = 15,
+    group = "Heatmap (Officer Involved & Fatal)"
+  ) %>%
+  
+  
+  leaflet.extras::addHeatmap(
+    data = officer_involved_non_fatal_sf,
+    lng = ~sf::st_coordinates(geometry)[,1], 
+    lat = ~sf::st_coordinates(geometry)[,2],
+    blur = 20, max = 0.05, radius = 15, # Adjust parameters if needed for this specific subset
+    group = "Heatmap (Officer Involved & Non-Fatal)"
+  ) %>%
+  
+  # Layer 5: Heatmap for Offender Deceased Incidents
+  leaflet.extras::addHeatmap(
+    data = offender_deceased_sf,
+    lng = ~sf::st_coordinates(geometry)[,1], 
+    lat = ~sf::st_coordinates(geometry)[,2],
+    blur = 20, max = 0.05, radius = 15,
+    group = "Heatmap (Offender Deceased)"
+  ) %>%
+
+  # Layer 6: Heatmap for All Officer Involved Incidents
+  leaflet.extras::addHeatmap(
+    data = all_officer_involved_sf,
+    lng = ~sf::st_coordinates(geometry)[,1], 
+    lat = ~sf::st_coordinates(geometry)[,2],
+    blur = 20, max = 0.05, radius = 15,
+    group = "Heatmap (All Officer Involved)"
+  ) %>%
+ 
+
+  # Legend for Clustered Markers
+  leaflet::addLegend(
+    position = "bottomright", 
+    colors = c("red", "orange"),
+    labels = c("Fatal Incident", "Non-Fatal Incident"),
+    title = "Incident Type (Markers)",
+    opacity = 1,
+    group = "Shooting Incidents (Clusters)" 
+  ) %>%
+  
+  # Layers Control to switch between layers
+  leaflet::addLayersControl(
+    baseGroups = "Base Map",
+    overlayGroups = c(
+      "Shooting Incidents (Clusters)", 
+      "Heatmap (All Incidents)", 
+      "Heatmap (All Fatal Incidents)",
+      "Heatmap (All Officer Involved)",
+      "Heatmap (Officer Involved & Fatal)",
+      "Heatmap (Officer Involved & Non-Fatal)", # Added new layer
+      "Heatmap (Offender Deceased)"
+    ),
+    options = leaflet::layersControlOptions(collapsed = FALSE) 
+  ) %>%
+  # Hide all heatmap layers by default so clusters are visible first
+  leaflet::hideGroup(c(
+      "Heatmap (All Incidents)", 
+      "Heatmap (All Fatal Incidents)",
+      "Heatmap (All Officer Involved)",
+      "Heatmap (Officer Involved & Fatal)",
+      "Heatmap (Officer Involved & Non-Fatal)", # Added new layer
+      "Heatmap (Offender Deceased)"
+  ))
+
+
+# Display the map
+map_enhanced_heatmaps 
 ```
 
 
