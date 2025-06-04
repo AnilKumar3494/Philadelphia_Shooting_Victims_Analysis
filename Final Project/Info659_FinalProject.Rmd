@@ -1,7 +1,9 @@
 ---
 title: "Philadelphia Shooting Victims Analysis"
-author: Anil Kumar, Shawn Thomas, Nicole Padilla
-output: html_notebook
+author: "Anil Kumar, Shawn Thomas, Nicole Padilla"
+output:
+  html_document:
+    df_print: paged
 ---
 
 # Introduction
@@ -337,7 +339,7 @@ m
 ```
 
 ```{r}
-# --- R Chunk: Leaflet Map with Clustering and Enhanced Heatmaps ---
+# R chunk: Defines map_enhanced_heatmaps (Corrected)
 
 # Define map center
 center_lon <- -75.1652
@@ -368,7 +370,7 @@ officer_involved_non_fatal_sf <- shootings_sf_for_map %>%
   dplyr::filter(officer_involved == 'Y' & total_fatality == 0)
 
 offender_deceased_sf <- shootings_sf_for_map %>%
-  dplyr::filter(offender_deceased == 'Y') # 'Y' is typical for character flags
+  dplyr::filter(offender_deceased == 'Y') 
 
 all_officer_involved_sf <- shootings_sf_for_map %>%
   dplyr::filter(officer_involved == 'Y')
@@ -378,10 +380,10 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
   leaflet::setView(lng = center_lon, lat = center_lat, zoom = 11) %>%
   leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron, group = "Base Map") %>%
   
-  # Layer 1: Clustered Markers (as before)
+  # Clustered Markers (as before)
   leaflet::addAwesomeMarkers(
     lng = ~sf::st_coordinates(geometry)[,1], 
-    lat = ~sf::st_coordinates(geometry)[,2], 
+    lat = ~sf::st_coordinates(geometry)[,2], # <--- THIS LINE WAS CORRECTED
     icon = ~leaflet::awesomeIcons(
       icon = 'info-circle', 
       library = 'glyphicon', 
@@ -399,7 +401,7 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
     group = "Shooting Incidents (Clusters)"
   ) %>%
   
-  # Layer 2: Heatmap for All Incidents (existing)
+  # Heatmap
   leaflet.extras::addHeatmap(
     # Data from leaflet() call: shootings_sf_for_map
     lng = ~sf::st_coordinates(geometry)[,1], 
@@ -408,17 +410,16 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
     group = "Heatmap (All Incidents)"
   ) %>%
 
-  # Layer 3: Heatmap for All Fatal Incidents (existing - uses total_fatality)
+  # Heatmap for All Fatal Incidents (existing - uses total_fatality)
   leaflet.extras::addHeatmap(
     data = dplyr::filter(shootings_sf_for_map, total_fatality > 0), 
     lng = ~sf::st_coordinates(geometry)[,1], 
     lat = ~sf::st_coordinates(geometry)[,2],
     blur = 20, max = 0.05, radius = 15,
-    group = "Heatmap (All Fatal Incidents)" # Clarified name
+    group = "Heatmap (All Fatal Incidents)" 
   ) %>%
-
   
-  # Layer 4: Heatmap for Officer Involved & Fatal Incidents
+  # Heatmap for Officer Involved & Fatal Incidents
   leaflet.extras::addHeatmap(
     data = officer_involved_fatal_sf,
     lng = ~sf::st_coordinates(geometry)[,1], 
@@ -427,16 +428,15 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
     group = "Heatmap (Officer Involved & Fatal)"
   ) %>%
   
-  
   leaflet.extras::addHeatmap(
     data = officer_involved_non_fatal_sf,
     lng = ~sf::st_coordinates(geometry)[,1], 
     lat = ~sf::st_coordinates(geometry)[,2],
-    blur = 20, max = 0.05, radius = 15, # Adjust parameters if needed for this specific subset
+    blur = 20, max = 0.05, radius = 15, 
     group = "Heatmap (Officer Involved & Non-Fatal)"
   ) %>%
   
-  # Layer 5: Heatmap for Offender Deceased Incidents
+  # Heatmap for Offender Deceased Incidents
   leaflet.extras::addHeatmap(
     data = offender_deceased_sf,
     lng = ~sf::st_coordinates(geometry)[,1], 
@@ -445,7 +445,7 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
     group = "Heatmap (Offender Deceased)"
   ) %>%
 
-  # Layer 6: Heatmap for All Officer Involved Incidents
+  # Heatmap for All Officer Involved Incidents
   leaflet.extras::addHeatmap(
     data = all_officer_involved_sf,
     lng = ~sf::st_coordinates(geometry)[,1], 
@@ -453,8 +453,7 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
     blur = 20, max = 0.05, radius = 15,
     group = "Heatmap (All Officer Involved)"
   ) %>%
- 
-
+  
   # Legend for Clustered Markers
   leaflet::addLegend(
     position = "bottomright", 
@@ -474,7 +473,7 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
       "Heatmap (All Fatal Incidents)",
       "Heatmap (All Officer Involved)",
       "Heatmap (Officer Involved & Fatal)",
-      "Heatmap (Officer Involved & Non-Fatal)", # Added new layer
+      "Heatmap (Officer Involved & Non-Fatal)", 
       "Heatmap (Offender Deceased)"
     ),
     options = leaflet::layersControlOptions(collapsed = FALSE) 
@@ -485,65 +484,11 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
       "Heatmap (All Fatal Incidents)",
       "Heatmap (All Officer Involved)",
       "Heatmap (Officer Involved & Fatal)",
-      "Heatmap (Officer Involved & Non-Fatal)", # Added new layer
+      "Heatmap (Officer Involved & Non-Fatal)",
       "Heatmap (Offender Deceased)"
   ))
 
-
 # Display the map
-map_enhanced_heatmaps 
+map_enhanced_heatmaps
 ```
 
-
-
-## using shiny
-# ```{r shiny_map, echo=FALSE}
-# years <- sort(unique(shootings_sf$year))
-# sexes <- unique(shootings_sf$sex)
-# year_colors <- colorFactor("viridis", domain = years)
-
-# ui <- fluidPage(
-#   titlePanel("Interactive Shooting Map by Year and Sex"),
-#   sidebarLayout(
-#     sidebarPanel(
-#       checkboxGroupInput("year_filter", "Select Year(s):", choices = years, selected = years),
-#       checkboxGroupInput("sex_filter", "Select Sex(es):", choices = sexes, selected = sexes)
-#     ),
-#     mainPanel(
-#       leafletOutput("shooting_map", height = 600)
-#     )
-#   )
-# )
-
-# server <- function(input, output, session) {
-
-#   output$shooting_map <- renderLeaflet({
-#     leaflet() %>%
-#       addProviderTiles(providers$CartoDB.Positron) %>%
-#       setView(lng = -75.1652, lat = 39.9526, zoom = 11) %>%
-#       addLegend("bottomleft", pal = year_colors, values = shootings_sf$year, title = "Year")
-#   })
-
-#   observe({
-#     req(input$year_filter, input$sex_filter)
-
-#     filtered_data <- shootings_sf %>%
-#       filter(year %in% input$year_filter, sex %in% input$sex_filter)
-
-#     leafletProxy("shooting_map") %>%
-#       clearMarkers() %>%
-#       addCircleMarkers(
-#         data = filtered_data,
-#         color = ~year_colors(year),
-#         radius = 5,
-#         stroke = FALSE,
-#         fillOpacity = 0.6,
-#         popup = ~paste0("<b>Year:</b> ", year,
-#                         "<br><b>Sex:</b> ", sex,
-#                         "<br><b>Date:</b> ", date_,
-#                         "<br><b>Location:</b> ", location)
-#       )
-#   })
-# }
-
-# shinyApp(ui, server)
