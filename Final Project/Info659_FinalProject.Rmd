@@ -5,7 +5,7 @@ output:
   html_document:
     df_print: paged
 ---
-
+̥
 # Introduction
 Gun violence is a significant issue in the city of Philadelphia. [There were 771 shooting incidents in the city in 2024 per the Philadelphia Police Department](https://www.phillypolice.com/crime-data/crime-statistics/). The goal of this project is to utilize the data provided by the Philadelphia Police Department via OpenDataPhilly on shooting incidents to build a picture of the fatal shooting incidents occurring in the city. Who is most likely to be the victim of a fatal incident (age, race, sex)? What conditions of an incident make it more likely to be fatal (wound type)? When and where are the most fatal incidents occurring (time of day/year, location)? 
 
@@ -36,6 +36,7 @@ library(htmlwidgets)
 library(shiny)
 library(dplyr)
 library(RColorBrewer)
+library(jsonlite)
 
 
 library(tidyverse)
@@ -135,13 +136,84 @@ ggplot(data = shootings.adjusted, aes(x = age, y = fatal)) +
   ggtitle("Age Distribution of Fatal Shooting Victims") +
   geom_col()
 ```
-### Fatal Shooting Victim Sex
+## Counting shootings to which body parts were most fatal
 
-### Fatal Shooting Victim Race
+```{r}
+fatal_df <- shootings.raw[shootings.raw$fatal == 1, ]
+```
 
-## Geospatial Analysis
 
-## Trends Overtime
+```{r}
+injury_counts <- table(fatal_df$wound)
+injury_counts
+```
+
+```{r}
+sorted_injury_counts <- sort(injury_counts,decreasing = TRUE)
+print(sorted_injury_counts)
+```
+
+## Plotting it
+
+```{r}
+barplot(sorted_injury_counts,las = 2,
+        col = "steelblue",     # Bar color
+        main = "Injury Types in Fatal Shootings",
+        ylab = "Number of Fatal Cases",
+        cex.names = 0.7)  
+
+```
+
+
+
+
+#### which age groups are mostly affected by fatal shootings
+
+```{r}
+
+fatal_df <- shootings.raw[shootings.raw$fatal==1,]
+head(fatal_df)
+```
+
+
+
+
+## Sort by age
+```{r}
+
+fatal_df$age_group <- cut(fatal_df$age,
+                          breaks = seq(0, 100, by = 10),
+                          right = FALSE,
+                          labels = c("0-9", "10-19", "20-29", "30-39", 
+                                     "40-49", "50-59", "60-69", "70-79", 
+                                     "80-89", "90-99"))
+
+```
+
+
+```{r}
+age_counts <- table(fatal_df$age_group)
+age_counts <- sort(age_counts, decreasing = TRUE)
+print(age_counts)
+```
+
+
+
+
+## Plotting fatal shooting counts with respect to age
+```{r}
+
+
+barplot(age_counts,
+        main = "Fatal Shootings by Age Group",
+        xlab = "Age Group",
+        ylab = "Number of Fatal Shootings",
+        col = "darkred",
+        cex.names = 0.7)
+
+
+```
+
 
 ### Average Age over Time
 
@@ -153,6 +225,18 @@ age_avg <- fatal.only %>%
 
 age_avg
 ```
+
+
+
+First, we will calculate the mean age of fatal shooting victim by year. 
+```{r}
+age_avg <- fatal.only %>%
+  group_by(year) %>%
+  summarize(average_value = mean(age))
+
+age_avg
+```
+
 Then, let's visualize the average age by year for 2015 - 2014. We are excluding 2025 because it is a partial year of data.
 
 ```{r}
@@ -161,6 +245,8 @@ ggplot(data = age_avg, aes(x = year, y = average_value)) +
   geom_col() +
   scale_x_continuous(breaks = 2015:2024)
 ```
+
+
 
 # AK - Geospatial Analysis
 ## Clean and prepare the data
@@ -180,6 +266,7 @@ shootings_sf <- st_as_sf(shootings.spatial , coords = c("longitude", "latitude")
 ```
 
 ## Plotting Static Map
+Visualizes Philadelphia shooting incidents using geospatial coordinates. The scatter plot reveals the geographic distribution, with red dots highlighting significant clustering of events in specific areas of the city.
 ```{r static_map}
 ggplot(data = shootings_sf) +
   geom_sf(alpha = 0.3, color = "red") +
@@ -191,36 +278,9 @@ ggplot(data = shootings_sf) +
 
 
 ## Interactive Map Using Leaflet
+This interactive map displays shooting incidents in Philadelphia from 2015 to 2025. Each dot represents a single event and is color-coded by year. With all years selected, the visualization reveals the cumulative geographic distribution and extremely dense concentration of shootings in specific neighborhoods across the city. Futher incidents can be filtered based on year. Clicking a data point reveals a pop-up with specific details for that shooting, including its exact date, location, and fatality/injury information.
 
 ```{r leaflet_interactive_map_enhanced, message=FALSE, warning=FALSE}
-# Load necessary libraries
-# Ensure you have these: dplyr, sf, leaflet, RColorBrewer, grDevices, htmltools, htmlwidgets, jsonlite
-library(dplyr)
-library(sf)
-library(leaflet)
-library(RColorBrewer)
-library(grDevices)
-library(htmltools)
-library(htmlwidgets)
-library(jsonlite)
-
-# Ensure shootings_sf is an sf object and has relevant columns
-# This assumes 'shootings_sf' is already loaded and processed.
-# Replace the placeholder below with your actual data loading and preparation.
-if (!exists("shootings_sf") || !"sf" %in% class(shootings_sf)) {
- message("Warning: 'shootings_sf' not found or not an sf object. Using dummy data for example structure.")
- # Dummy data for example structure:
- shootings_sf <- data.frame(
-    year = rep(2020:2021, each = 2),
-    date_ = as.Date(c("2020-01-01", "2020-02-01", "2021-01-15", "2021-03-10")),
-    location = paste("Location", 1:4),
-    total_fatality = c(0, 1, 0, 1),
-    lat = runif(4, 39.9, 40.1),
-    lng = runif(4, -75.2, -75.1)
- ) %>%
- st_as_sf(coords = c("lng", "lat"), crs = 4326)
-}
-
 if (!"total_fatality" %in% names(shootings_sf) || !"year" %in% names(shootings_sf) || !"date_" %in% names(shootings_sf) || !"location" %in% names(shootings_sf) ) {
   stop("shootings_sf is missing one or more required columns: year, date_, location, total_fatality.")
 }
@@ -291,7 +351,7 @@ if (length(years) > 0) {
   )
 }
 
-# JavaScript for a single "Select/Deselect All" toggle button using paste0
+## For button
 year_groups_json_str <- jsonlite::toJSON(as.character(years)) # Prepare JSON string once
 
 select_toggle_js <- paste0(
@@ -360,7 +420,7 @@ if (length(years) > 0 && !is.null(year_colors)) {
 # CSS Styling using paste0
 css_styling_js <- paste0(
   "function(el, x) {\n",
-  "  var css = `\n", # Start of JS template literal
+  "  var css = `\n", 
   "    .safegraph-map { border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); overflow: hidden; }\n",
   "    .safegraph-button { background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; transition: background-color 0.3s ease; font-family: 'Arial', sans-serif; color: #333; display: block; width: 100%; text-align: center; white-space: nowrap; box-sizing: border-box; }\n",
   "    .safegraph-button:hover { background-color: #e0e0e0; }\n",
@@ -369,7 +429,7 @@ css_styling_js <- paste0(
   "    .leaflet-popup-content b { font-weight: 600; color: #2c3e50; }\n",
   "    .leaflet-control-layers { background-color: rgba(255,255,255,0.9); border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); padding: 6px 10px; font-size: 12px; color: #34495e; }\n",
   "    .leaflet-control-layers-title { font-weight: bold; margin-bottom: 6px; color: #2c3e50; }\n",
-  "  `;\n", # End of JS template literal
+  "  `;\n", 
   "  var style = document.createElement('style');\n",
   "  style.type = 'text/css';\n",
   "  style.appendChild(document.createTextNode(css));\n",
@@ -385,8 +445,6 @@ m
 ```
 
 ```{r}
-# R chunk: Defines map_enhanced_heatmaps (Corrected)
-
 # Define map center
 center_lon <- -75.1652
 center_lat <- 39.9526
@@ -429,7 +487,7 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
   # Clustered Markers (as before)
   leaflet::addAwesomeMarkers(
     lng = ~sf::st_coordinates(geometry)[,1], 
-    lat = ~sf::st_coordinates(geometry)[,2], # <--- THIS LINE WAS CORRECTED
+    lat = ~sf::st_coordinates(geometry)[,2],
     icon = ~leaflet::awesomeIcons(
       icon = 'info-circle', 
       library = 'glyphicon', 
@@ -456,7 +514,7 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
     group = "Heatmap (All Incidents)"
   ) %>%
 
-  # Heatmap for All Fatal Incidents (existing - uses total_fatality)
+  # Heatmap for All Fatal Incidents
   leaflet.extras::addHeatmap(
     data = dplyr::filter(shootings_sf_for_map, total_fatality > 0), 
     lng = ~sf::st_coordinates(geometry)[,1], 
