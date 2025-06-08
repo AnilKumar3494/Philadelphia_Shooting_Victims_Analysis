@@ -352,7 +352,7 @@ if (length(years) > 0) {
 }
 
 ## For button
-year_groups_json_str <- jsonlite::toJSON(as.character(years)) # Prepare JSON string once
+year_groups_json_str <- jsonlite::toJSON(as.character(years)) 
 
 select_toggle_js <- paste0(
   "function(el, x, data) {\n",
@@ -444,27 +444,18 @@ m <- m %>% htmlwidgets::onRender(css_styling_js)
 m
 ```
 
+## Heatmap Visualization
+Over the last decade, 16,704 total incidents have occurred across the city. To better visualize these widespread events, the data was organized into geographical clusters and displayed as a heatmaps for various types of incidents, revealing areas with the highest concentrations. 
 ```{r}
-# Define map center
 center_lon <- -75.1652
 center_lat <- 39.9526
 
 # Prepare base data for the map
-# This assumes 'shootings_sf' contains 'officer_involved' and 'offender_deceased' from your raw data processing
 shootings_sf_for_map <- shootings_sf %>%
   dplyr::mutate(
     incident_color = ifelse(total_fatality > 0, "red", "orange"),
     fatality_label = ifelse(total_fatality > 0, "Fatal", "Non-Fatal")
   )
-
-# Check for necessary columns for filtering new heatmaps
-if (!all(c("officer_involved", "offender_deceased", "total_fatality") %in% names(shootings_sf_for_map))) {
-  stop("One or more required columns ('officer_involved', 'offender_deceased', 'total_fatality') are missing from shootings_sf_for_map.")
-}
-if (!"wound" %in% names(shootings_sf_for_map)) {
-  warning("The column 'wound' was not found in the data. Wound information will be missing from popups.")
-}
-
 
 # Create filtered datasets for new heatmap layers
 officer_involved_fatal_sf <- shootings_sf_for_map %>%
@@ -507,7 +498,6 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
   
   # Heatmap
   leaflet.extras::addHeatmap(
-    # Data from leaflet() call: shootings_sf_for_map
     lng = ~sf::st_coordinates(geometry)[,1], 
     lat = ~sf::st_coordinates(geometry)[,2],
     blur = 20, max = 0.05, radius = 15,
@@ -532,6 +522,7 @@ map_enhanced_heatmaps <- leaflet::leaflet(data = shootings_sf_for_map) %>% # Bas
     group = "Heatmap (Officer Involved & Fatal)"
   ) %>%
   
+  # Heatmap for Officer Involved & Non-Fatal Incidents
   leaflet.extras::addHeatmap(
     data = officer_involved_non_fatal_sf,
     lng = ~sf::st_coordinates(geometry)[,1], 
