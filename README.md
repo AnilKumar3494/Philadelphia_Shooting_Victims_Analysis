@@ -48,8 +48,17 @@ This project was developed as part of Drexel University's INFO 659 course. The p
 <summary>Click to expand</summary>
 
 - Victim demographics and wound analysis
+- <img width="1344" height="960" alt="image" src="https://github.com/user-attachments/assets/dd6a0268-1ee4-416c-87dc-a829f4df19f3" />
+- <img width="1344" height="960" alt="image" src="https://github.com/user-attachments/assets/e80cfbb5-f4e6-4613-9782-6cdd4fce9482" />
+- <img width="1344" height="960" alt="image" src="https://github.com/user-attachments/assets/71dcc606-1ba7-4054-956c-15c757b0a8e1" />
+- <img width="1344" height="960" alt="image" src="https://github.com/user-attachments/assets/dc50f880-0d76-4234-945a-6eb9d8fc90f8" />
 - Year-by-year map filtering
+- <img width="1344" height="960" alt="image" src="https://github.com/user-attachments/assets/7a5e5e82-7fa6-4d80-966b-78395c1a1468" />
 - Interactive clustering & heatmap overlays
+- <img width="1344" height="960" alt="image" src="https://github.com/user-attachments/assets/d3a85c6b-0d0b-410e-a3f7-6ffcb696b471" />
+- <img width="1066" height="758" alt="image" src="https://github.com/user-attachments/assets/9a4c3c82-1255-45fc-82c6-18fb50b24fb9" />
+- <img width="1064" height="755" alt="image" src="https://github.com/user-attachments/assets/83fe2735-cbb3-4d5b-af07-1662d3c13feb" />
+
 - Summary dashboard with key statistics
 
 </details>
